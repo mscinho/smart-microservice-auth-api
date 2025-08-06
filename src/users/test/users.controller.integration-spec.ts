@@ -1,9 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { AppModule } from '../src/app.module';
-import { USERS_REPOSITORY } from '../src/users/infrastructure/users.providers';
-import { UserEntity } from '../src/users/infrastructure/typeorm/user.entity';
+import { AppModule } from '../../app.module';
+import { USERS_REPOSITORY } from '../infrastructure/users.providers';
+import { UserEntity } from '../infrastructure/typeorm/user.entity';
 
 
 describe('UsersController (e2e)', () => {

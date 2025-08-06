@@ -1,20 +1,27 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { UsersModule } from './users/infrastructure/users.module';
+import { UsersModule } from './users/users.module';
+import { AuthModule } from './auth/auth.module';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true, 
+      envFilePath: '.env',
+    }),
     TypeOrmModule.forRoot({
       type: 'mysql',
-      host: 'localhost', // ou o IP do seu servidor MySQL
+      host: 'localhost',
       port: 3306,
-      username: 'sistema', // Seu usuário do MySQL
-      password: '123456', // Sua senha do MySQL
-      database: 'smart_auth_api', // O nome do seu banco de dados
+      username: 'sistema',
+      password: '123456',
+      database: 'smart_auth_api',
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
-      synchronize: true, // Apenas para desenvolvimento! Cuidado em produção.
+      synchronize: true,
     }),
-    UsersModule
+    UsersModule,
+    AuthModule
   ],
   controllers: [],
   providers: [],
