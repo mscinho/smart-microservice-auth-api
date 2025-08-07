@@ -24,12 +24,20 @@ describe('LoginUserUseCase', () => {
     findByEmail: jest.fn(),
   };
 
+
   const mockJwtService = {
     sign: jest.fn(),
   };
 
+  const mockRefreshTokenRepository = {
+    create: jest.fn(),
+    findById: jest.fn(),
+    revoke: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         LoginUserUseCase,
@@ -40,6 +48,10 @@ describe('LoginUserUseCase', () => {
         {
           provide: JwtService,
           useValue: mockJwtService,
+        },
+        {
+          provide: 'IRefreshTokenRepository',
+          useValue: mockRefreshTokenRepository,
         },
       ],
     }).compile();
