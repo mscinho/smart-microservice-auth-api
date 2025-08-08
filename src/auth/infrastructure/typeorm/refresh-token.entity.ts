@@ -6,15 +6,18 @@ export class RefreshTokenEntity {
   @PrimaryColumn()
   id: string;
 
-  @Column({ default: true })
+  @Column({ default: true, name: 'is_active' })
   isActive: boolean;
 
-  @Column()
+  @Column({ type: 'timestamp', name: 'expires_at' })
   expiresAt: Date;
 
   @ManyToOne(() => UserEntity)
   user: UserEntity;
 
-  @CreateDateColumn({ type: 'timestamp' })
+  @Column({ type: 'timestamp', name: 'session_created_at' })
+  sessionCreatedAt: Date;
+
+  @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
   createdAt: Date;
 }

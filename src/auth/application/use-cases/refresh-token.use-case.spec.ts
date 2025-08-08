@@ -16,13 +16,14 @@ describe('RefreshTokenUseCase', () => {
   let usersRepository: IUsersRepository;
   let jwtService: JwtService;
 
-  const mockUser: User = { id: 1, email: 'test@email.com', isActive: true };
+  const mockUser: User = { id: 1, email: 'test@email.com', isActive: true, isTwoFactorAuthenticationEnabled: false, createdAt: new Date() };
 
   const mockRefreshTokenEntity: RefreshTokenEntity = {
     id: 'old-refresh-token',
     user: mockUser as any,
     isActive: true,
     expiresAt: new Date(Date.now() + 1000 * 60 * 60), // Expira em 1 hora
+    sessionCreatedAt: new Date(),
     createdAt: new Date(),
   };
 
@@ -103,7 +104,7 @@ describe('RefreshTokenUseCase', () => {
 
   // --- Teste de Falha (Sessão total expirada - 30 dias) ---
   it('should throw an error if the total session has expired', async () => {
-    const oldToken = { ...mockRefreshTokenEntity, id: 'old-token', createdAt: new Date(Date.now() - (31 * 24 * 60 * 60 * 1000)) };
+    const oldToken = { ...mockRefreshTokenEntity, id: 'old-token', sessionCreatedAt: new Date(Date.now() - (31 * 24 * 60 * 60 * 1000)) };
     jest.spyOn(refreshTokenRepository, 'findById').mockResolvedValue(oldToken);
     await expect(useCase.execute('old-token')).rejects.toThrow('Invalid or expired refresh token');
     expect(refreshTokenRepository.revoke).toHaveBeenCalledWith('old-token');

@@ -17,6 +17,11 @@ export class UsersRepository implements IUsersRepository {
     return userEntity ? userEntity.toDomain() : null;
   }
 
+  async findById(id: number): Promise<User | null> {
+    const userEntity = await this.repository.findOne({ where: { id } });
+    return userEntity ? userEntity.toDomain() : null;
+  }
+
   async create(user: User): Promise<User> {
     const userEntity = UserEntity.fromDomain(user);
     const created = await this.repository.save(userEntity);

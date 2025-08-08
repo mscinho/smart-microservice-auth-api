@@ -30,7 +30,7 @@ export class RefreshTokenUseCase {
       !storedToken || 
       !storedToken.isActive || 
       storedToken.expiresAt < new Date() ||
-      (Date.now() - storedToken.createdAt.getTime()) > maxSessionDuration
+      (Date.now() - storedToken.sessionCreatedAt.getTime()) > maxSessionDuration
     ) {
       if (storedToken) {
         await this.refreshTokenRepository.revoke(storedToken.id);
@@ -54,6 +54,7 @@ export class RefreshTokenUseCase {
     newRefreshTokenEntity.id = uuidv4();
     newRefreshTokenEntity.user = user as any;
     newRefreshTokenEntity.expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
+    newRefreshTokenEntity.sessionCreatedAt = storedToken.sessionCreatedAt;
 
     await this.refreshTokenRepository.create(newRefreshTokenEntity);
 

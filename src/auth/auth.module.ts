@@ -11,6 +11,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { RefreshTokenEntity } from './infrastructure/typeorm/refresh-token.entity';
 import { RefreshTokenRepository } from './infrastructure/typeorm/refresh-token.repository';
 import { RefreshTokenUseCase } from './application/use-cases/refresh-token.use-case';
+import { GenerateTwoFactorAuthSecretUseCase } from './application/use-cases/generate-2fa-secret.use-case';
+import { VerifyTwoFactorAuthCodeUseCase } from './application/use-cases/verify-2fa-code.use-case';
+import { VerifyTwoFactorAuthCodeOnLoginUseCase } from './application/use-cases/verify-2fa-code-on-login.use-case';
 
 @Module({
   imports: [
@@ -28,10 +31,13 @@ import { RefreshTokenUseCase } from './application/use-cases/refresh-token.use-c
     UsersModule
   ],
   providers: [
-    LoginUserUseCase,
-    RefreshTokenUseCase,
     JwtStrategy,
     JwtAuthGuard,
+    LoginUserUseCase,
+    RefreshTokenUseCase,
+    GenerateTwoFactorAuthSecretUseCase,
+    VerifyTwoFactorAuthCodeUseCase,
+    VerifyTwoFactorAuthCodeOnLoginUseCase,
     {
       provide: 'IRefreshTokenRepository',
       useClass: RefreshTokenRepository

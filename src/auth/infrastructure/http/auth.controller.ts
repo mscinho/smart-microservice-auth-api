@@ -1,9 +1,18 @@
-import { Controller, Post, Body, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import { Controller, Post, Body, HttpException, HttpStatus, Logger, UseGuards, Request } from '@nestjs/common';
 import { LoginUserDto } from '../../application/dtos/login-user.dto';
 import { LoginUserUseCase } from '../../application/use-cases/login-user.use-case';
 import { UserPresenter } from '../../../users/infrastructure/http/user.presenter';
 import { RefreshTokenDto } from '../../application/dtos/refresh-token.dto';
 import { RefreshTokenUseCase } from '../../application/use-cases/refresh-token.use-case';
+import { GenerateTwoFactorAuthSecretUseCase } from '../../application/use-cases/generate-2fa-secret.use-case';
+import { JwtAuthGuard } from '../jwt/jwt-auth.guard';
+import { UserPayloadDto } from '../../application/dtos/user-payload.dto';
+import type { RequestWithUser } from '../../../common/interfaces/request-with-user.interface';
+import { TwoFactorAuthCodeDto } from '../../application/dtos/two-factor-auth-code.dto';
+import { VerifyTwoFactorAuthCodeUseCase } from '../../application/use-cases/verify-2fa-code.use-case';
+import { VerifyTwoFactorAuthCodeOnLoginUseCase } from '../../application/use-cases/verify-2fa-code-on-login.use-case';
+import { User } from '../../../users/domain/entities/user';
+import { TwoFactorAuthLoginDto } from '../../application/dtos/two-factor-auth-login.dto';
 
 
 @Controller('auth')
@@ -13,16 +22,25 @@ export class AuthController {
 
   constructor(
     private readonly loginUserUseCase: LoginUserUseCase,
-    private readonly refreshTokenUseCase: RefreshTokenUseCase
+    private readonly refreshTokenUseCase: RefreshTokenUseCase,
+    private readonly generateTwoFactorAuthSecretUseCase: GenerateTwoFactorAuthSecretUseCase,
+    private readonly verifyTwoFactorAuthCodeUseCase: VerifyTwoFactorAuthCodeUseCase,
+    private readonly verify2FaCodeOnLoginUseCase: VerifyTwoFactorAuthCodeOnLoginUseCase
   ) { }
 
   @Post('login')
   async login(@Body() loginUserDto: LoginUserDto) {
     try {
-      const { user, accessToken, refreshToken } = await this.loginUserUseCase.execute(
+      const result = await this.loginUserUseCase.execute(
         loginUserDto.email,
         loginUserDto.password,
       );
+
+      if ('requires2Fa' in result && result.requires2Fa) {
+        return { user: { id: result.user.id, email: result.user.email }, message: '2FA required' };
+      }
+
+      const { user, accessToken, refreshToken } = result as { user: User, accessToken: string, refreshToken: string };
 
       return {
         user: new UserPresenter(user),
@@ -39,7 +57,7 @@ export class AuthController {
       if (error instanceof Error && error.message === 'Invalid credentials') {
         throw new HttpException('Invalid credentials', HttpStatus.UNAUTHORIZED);
       }
-      
+
       throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
@@ -63,4 +81,60 @@ export class AuthController {
       throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
+
+  @Post('2fa/generate')
+  @UseGuards(JwtAuthGuard)
+  async generateTwoFactorAuthSecret(@Request() req: RequestWithUser) {
+
+    const userPayload: UserPayloadDto = req.user;
+
+    const { secret, otpauthUrl } = await this.generateTwoFactorAuthSecretUseCase.execute(userPayload);
+
+    return {
+      secret,
+      otpauthUrl,
+    };
+  }
+
+  @Post('2fa/verify')
+  @UseGuards(JwtAuthGuard) // A rota é protegida para garantir que o usuário está logado
+  async verifyTwoFactorAuthCode(
+    @Request() req: RequestWithUser,
+    @Body() twoFactorAuthCodeDto: TwoFactorAuthCodeDto,
+  ) {
+    const userPayload: UserPayloadDto = req.user;
+
+    const isCodeValid = await this.verifyTwoFactorAuthCodeUseCase.execute(
+      userPayload.id,
+      twoFactorAuthCodeDto.code,
+    );
+
+    if (!isCodeValid) {
+      throw new HttpException('Código de autenticação inválido', HttpStatus.FORBIDDEN);
+    }
+
+    return { message: 'Autenticação de dois fatores ativada com sucesso!' };
+  }
+
+  @Post('2fa/login')
+  async loginWith2FA(@Body() twoFactorAuthLoginDto: TwoFactorAuthLoginDto) {
+    try {
+        const { user, accessToken, refreshToken } = await this.verify2FaCodeOnLoginUseCase.execute(
+            twoFactorAuthLoginDto.userId,
+            twoFactorAuthLoginDto.code,
+        );
+        return {
+            user: new UserPresenter(user),
+            accessToken,
+            refreshToken,
+        };
+    } catch (error) {
+        this.logger.error(`Tentativa de login 2FA falhou para o ID: ${twoFactorAuthLoginDto.userId}`, error.stack);
+        if (error instanceof Error && (error.message === 'Invalid 2FA code' || error.message === '2FA not enabled for this user')) {
+            throw new HttpException('Código de autenticação inválido ou 2FA não ativado', HttpStatus.UNAUTHORIZED);
+        }
+        throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
 }
