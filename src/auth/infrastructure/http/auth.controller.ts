@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpException, HttpStatus, Logger, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Body, HttpException, HttpStatus, Logger, UseGuards, Request, HttpCode } from '@nestjs/common';
 import { LoginUserDto } from '../../application/dtos/login-user.dto';
 import { LoginUserUseCase } from '../../application/use-cases/login-user.use-case';
 import { UserPresenter } from '../../../users/infrastructure/http/user.presenter';
@@ -63,6 +63,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @HttpCode(HttpStatus.OK)
   async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
     try {
       const { user, accessToken, refreshToken } = await this.refreshTokenUseCase.execute(

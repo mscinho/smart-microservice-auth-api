@@ -6,30 +6,30 @@ import { User } from '../../../users/domain/entities/user';
 import { UserPresenter } from '../../../users/infrastructure/http/user.presenter';
 import { HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { RefreshTokenUseCase } from '../../application/use-cases/refresh-token.use-case';
+import { VerifyTwoFactorAuthCodeOnLoginUseCase } from '../../application/use-cases/verify-2fa-code-on-login.use-case';
+import { GenerateTwoFactorAuthSecretUseCase } from '../../application/use-cases/generate-2fa-secret.use-case';
+import { VerifyTwoFactorAuthCodeUseCase } from '../../application/use-cases/verify-2fa-code.use-case';
+import { TwoFactorAuthLoginDto } from '../../application/dtos/two-factor-auth-login.dto';
+import { RequestWithUser } from '../../../common/interfaces/request-with-user.interface';
 
 
 describe('AuthController', () => {
   let controller: AuthController;
-  // Mock do LoginUserUseCase
-  const mockLoginUserUseCase = {
-    execute: jest.fn(),
-  };
 
-  beforeEach(() => {
+  const mockLoginUserUseCase = { execute: jest.fn() };
+  const mockRefreshTokenUseCase = { execute: jest.fn() };
+  const mockGenerate2faSecretUseCase = { execute: jest.fn() };
+  const mockVerify2FaCodeUseCase = { execute: jest.fn() };
+  const mockVerify2FaCodeOnLoginUseCase = { execute: jest.fn() };
+
+  beforeEach(async () => {
     jest.clearAllMocks();
     jest.spyOn(Logger.prototype, 'error').mockImplementation(jest.fn());
     jest.spyOn(Logger.prototype, 'log').mockImplementation(jest.fn());
     jest.spyOn(Logger.prototype, 'warn').mockImplementation(jest.fn());
     jest.spyOn(Logger.prototype, 'debug').mockImplementation(jest.fn());
     jest.spyOn(Logger.prototype, 'verbose').mockImplementation(jest.fn());
-  });
 
-  // Mock do RefreshTokenUseCase
-  const mockRefreshTokenUseCase = {
-    execute: jest.fn()
-  };
-
-  beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
       providers: [
@@ -40,6 +40,18 @@ describe('AuthController', () => {
         {
           provide: RefreshTokenUseCase,
           useValue: mockRefreshTokenUseCase,
+        },
+        {
+          provide: GenerateTwoFactorAuthSecretUseCase,
+          useValue: mockGenerate2faSecretUseCase,
+        },
+        {
+          provide: VerifyTwoFactorAuthCodeUseCase,
+          useValue: mockVerify2FaCodeUseCase,
+        },
+        {
+          provide: VerifyTwoFactorAuthCodeOnLoginUseCase,
+          useValue: mockVerify2FaCodeOnLoginUseCase,
         },
       ],
     }).compile();
@@ -60,11 +72,9 @@ describe('AuthController', () => {
     };
 
     // Entidade de domínio que o use-case retornaria
-    const loggedInUser: User = {
-      id: 1,
-      email: 'test@email.com',
-      isActive: true,
-    };
+    const loggedInUser = new User('test@email.com');
+    loggedInUser.id = 1;
+    loggedInUser.isActive = true;
 
     // Mocka a resposta do use-case
     mockLoginUserUseCase.execute.mockResolvedValue({
@@ -164,4 +174,104 @@ describe('AuthController', () => {
     );
     expect(mockRefreshTokenUseCase.execute).toHaveBeenCalled();
   });
+
+  // --- Novos Testes para a rota /auth/2fa/generate ---
+  it('should generate a 2FA secret and return the otpauthUrl', async () => {
+
+    const userPayload = { id: 1, email: 'test@email.com' };
+    const secretResult = {
+      secret: 'mock-secret',
+      otpauthUrl: 'otpauth://totp/mocked-url',
+    };
+
+    mockGenerate2faSecretUseCase.execute.mockResolvedValue(secretResult);
+
+    const req = { user: userPayload } as RequestWithUser;
+    const result = await controller.generateTwoFactorAuthSecret(req);
+
+    expect(mockGenerate2faSecretUseCase.execute).toHaveBeenCalledWith(userPayload);
+    expect(result).toEqual(secretResult);
+  });
+
+  it('should throw an error if the user is not found during secret generation', async () => {
+    const userPayload = { id: 99, email: 'nonexistent@email.com' };
+    mockGenerate2faSecretUseCase.execute.mockRejectedValue(new Error('User not found'));
+
+    const req = { user: userPayload } as RequestWithUser;
+    await expect(controller.generateTwoFactorAuthSecret(req)).rejects.toThrow(Error('User not found'));
+  });
+
+  // --- Novos Testes para a rota /auth/2fa/verify ---
+  it('should successfully verify the 2FA code and enable 2FA', async () => {
+    const userPayload = { id: 1, email: 'test@email.com' };
+    const codeDto = { code: '123456' };
+
+    mockVerify2FaCodeUseCase.execute.mockResolvedValue(true);
+    const req = { user: userPayload } as RequestWithUser;
+
+    const result = await controller.verifyTwoFactorAuthCode(req, codeDto);
+
+    expect(mockVerify2FaCodeUseCase.execute).toHaveBeenCalledWith(userPayload.id, codeDto.code);
+    expect(result).toEqual({ message: 'Autenticação de dois fatores ativada com sucesso!' });
+  });
+
+  it('should throw ForbiddenException if the 2FA code is invalid', async () => {
+    const userPayload = { id: 1, email: 'test@email.com' };
+    const codeDto = { code: 'wrong-code' };
+
+    mockVerify2FaCodeUseCase.execute.mockResolvedValue(false);
+    const req = { user: userPayload } as RequestWithUser;
+
+    await expect(controller.verifyTwoFactorAuthCode(req, codeDto)).rejects.toThrow(
+      new HttpException('Código de autenticação inválido', HttpStatus.FORBIDDEN),
+    );
+    expect(mockVerify2FaCodeUseCase.execute).toHaveBeenCalled();
+  });
+
+  // --- Novos Testes para a rota /auth/2fa/login ---
+  it('should return tokens on a successful 2FA login', async () => {
+    const login2faDto: TwoFactorAuthLoginDto = { userId: 1, code: '123456' };
+    const loggedInUser = new User('test@email.com');
+    loggedInUser.id = 1;
+    loggedInUser.isActive = true;
+    const tokens = {
+      user: loggedInUser,
+      accessToken: 'new-access-token',
+      refreshToken: 'new-refresh-token',
+    };
+
+    mockVerify2FaCodeOnLoginUseCase.execute.mockResolvedValue(tokens);
+
+    const result = await controller.loginWith2FA(login2faDto);
+
+    expect(mockVerify2FaCodeOnLoginUseCase.execute).toHaveBeenCalledWith(
+      login2faDto.userId,
+      login2faDto.code,
+    );
+    expect(result.accessToken).toBe(tokens.accessToken);
+    expect(result.refreshToken).toBe(tokens.refreshToken);
+    expect(result.user).toBeInstanceOf(UserPresenter);
+    expect(result.user.email).toBe(loggedInUser.email);
+  });
+
+  it('should throw UnauthorizedException for an invalid 2FA code', async () => {
+    const login2faDto: TwoFactorAuthLoginDto = { userId: 1, code: 'wrong-code' };
+    mockVerify2FaCodeOnLoginUseCase.execute.mockRejectedValue(new Error('Invalid 2FA code'));
+
+    await expect(controller.loginWith2FA(login2faDto)).rejects.toThrow(
+      new HttpException('Código de autenticação inválido ou 2FA não ativado', HttpStatus.UNAUTHORIZED),
+    );
+    expect(mockVerify2FaCodeOnLoginUseCase.execute).toHaveBeenCalled();
+  });
+
+  it('should throw InternalServerError for other unexpected errors', async () => {
+    const login2faDto: TwoFactorAuthLoginDto = { userId: 1, code: 'any-token' };
+    mockVerify2FaCodeOnLoginUseCase.execute.mockRejectedValue(new Error('Database connection failed'));
+
+    await expect(controller.loginWith2FA(login2faDto)).rejects.toThrow(
+      new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR),
+    );
+    expect(mockVerify2FaCodeOnLoginUseCase.execute).toHaveBeenCalled();
+  });
+
 });

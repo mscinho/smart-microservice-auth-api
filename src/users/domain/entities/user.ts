@@ -11,5 +11,6 @@ export class User {
     this.email = email;
     this.isActive = false;
     this.isTwoFactorAuthenticationEnabled = false;
+    this.createdAt = new Date();
   }
 }
