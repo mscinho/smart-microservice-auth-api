@@ -15,6 +15,7 @@ describe('RefreshTokenRepository', () => {
     expiresAt: new Date(Date.now() + 100000),
     createdAt: new Date(),
     user: new UserEntity(),
+    sessionCreatedAt: new Date()
   };
 
   const mockTypeOrmRepository = {

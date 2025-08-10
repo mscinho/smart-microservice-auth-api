@@ -17,8 +17,6 @@ export class VerifyTwoFactorAuthCodeUseCase {
       return false;
     }
 
-    console.log(code);
-
     // Verifica se o código é válido
     const isCodeValid = speakeasy.totp.verify({
       secret: user.twoFactorAuthenticationSecret,

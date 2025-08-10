@@ -16,11 +16,16 @@ import { VerifyTwoFactorAuthCodeUseCase } from './application/use-cases/verify-2
 import { VerifyTwoFactorAuthCodeOnLoginUseCase } from './application/use-cases/verify-2fa-code-on-login.use-case';
 import { GoogleStrategy } from './infrastructure/google/google.strategy';
 import { LoginWithGoogleUseCase } from './application/use-cases/login-with-google.use-case';
+import { PasswordResetTokenRepository } from './infrastructure/typeorm/password-reset-token.repository';
+import { ForgotPasswordUseCase } from './application/use-cases/forgot-password.use-case';
+import { ResetPasswordUseCase } from './application/use-cases/reset-password.use-case';
+import { SharedModule } from '../shared/shared.module';
+import { PasswordResetTokenEntity } from './infrastructure/typeorm/password-reset-token.entity';
 
 @Module({
   imports: [
     PassportModule,
-    ConfigModule, 
+    ConfigModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
@@ -29,8 +34,12 @@ import { LoginWithGoogleUseCase } from './application/use-cases/login-with-googl
       }),
       inject: [ConfigService],
     }),
-    TypeOrmModule.forFeature([RefreshTokenEntity]),
-    UsersModule
+    TypeOrmModule.forFeature([
+      RefreshTokenEntity,
+      PasswordResetTokenEntity
+    ]),
+    UsersModule,
+    SharedModule
   ],
   providers: [
     JwtStrategy,
@@ -42,9 +51,15 @@ import { LoginWithGoogleUseCase } from './application/use-cases/login-with-googl
     VerifyTwoFactorAuthCodeOnLoginUseCase,
     GoogleStrategy,
     LoginWithGoogleUseCase,
+    ForgotPasswordUseCase,
+    ResetPasswordUseCase,
     {
       provide: 'IRefreshTokenRepository',
       useClass: RefreshTokenRepository
+    },
+    {
+      provide: 'IPasswordResetTokenRepository',
+      useClass: PasswordResetTokenRepository,
     }
   ],
   controllers: [AuthController],

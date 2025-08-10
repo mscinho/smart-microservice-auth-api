@@ -8,6 +8,8 @@ O serviço oferece um conjunto completo de recursos de autenticação de nível 
 
 * **Registro de Usuários**: Rota segura para criação de novas contas com criptografia de senha.
 * **Login com JWT**: Autenticação de usuários via e-mail e senha, gerando um token de acesso de curta duração (JWT).
+* **Login Social (Google OAuth 2.0)**: Permite que o usuário se autentique de forma segura usando sua conta do Google, com criação automática de usuário.
+* **Recuperação de Senha**: Fluxo seguro de redefinição de senha, com envio de token único e de curta duração por e-mail.
 * **Refresh Token**: Sistema de renovação de tokens seguro, com rotação de refresh token e controle de duração total da sessão, mitigando riscos de segurança.
 * **Autenticação de Dois Fatores (2FA)**: Implementação completa de 2FA usando o padrão TOTP, compatível com aplicativos como Google Authenticator.
 * **Proteção de Rotas**: Guardiões de rota para proteger endpoints e garantir que apenas usuários autenticados possam acessá-los.
@@ -22,7 +24,8 @@ O serviço oferece um conjunto completo de recursos de autenticação de nível 
 * **Banco de Dados**: [MySQL](https://www.mysql.com/)
 * **ORM**: [TypeORM](https://typeorm.io/)
 * **Testes**: [Jest](https://jestjs.io/) e [Supertest](https://github.com/visionmedia/supertest)
-* **Segurança**: `bcrypt`, `speakeasy`, `@nestjs/jwt`
+* **Segurança**: `bcrypt`, `speakeasy`, `@nestjs/jwt`, `passport-google-oauth20`
+* **E-mail**: `nodemailer`
 
 ## Como Iniciar
 
@@ -31,7 +34,8 @@ O serviço oferece um conjunto completo de recursos de autenticação de nível 
 3.  Configure o banco de dados e as variáveis de ambiente em um arquivo `.env` na raiz do projeto.
     
     `JWT_SECRET=sua_chave_secreta_aqui`
-    `APP_NAME=auth-api`
+    `GOOGLE_CLIENT_ID=seu_client_id_aqui`
+    `GOOGLE_CLIENT_SECRET=seu_client_secret_aqui`
     
 4.  Execute a aplicação em modo de desenvolvimento: `npm run start:dev`
 
@@ -40,6 +44,10 @@ O serviço oferece um conjunto completo de recursos de autenticação de nível 
 * `POST /users/register`: Registra um novo usuário.
 * `POST /auth/login`: Faz o login e retorna os tokens ou a mensagem de 2FA.
 * `POST /auth/refresh`: Renova os tokens de acesso e refresh.
+* `GET /auth/google`: Inicia o fluxo de login com o Google.
+* `GET /auth/google/callback`: Rota de retorno do Google.
+* `POST /auth/forgot-password`: Inicia o fluxo de recuperação de senha.
+* `POST /auth/reset-password`: Redefine a senha do usuário com um token válido.
 * `POST /auth/2fa/generate`: Gera o segredo da 2FA e o QR code para um usuário autenticado.
 * `POST /auth/2fa/verify`: Ativa a 2FA para um usuário autenticado.
 * `POST /auth/2fa/login`: Completa o login de um usuário com 2FA.

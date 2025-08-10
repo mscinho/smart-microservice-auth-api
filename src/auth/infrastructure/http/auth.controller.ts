@@ -16,6 +16,10 @@ import { TwoFactorAuthLoginDto } from '../../application/dtos/two-factor-auth-lo
 import { AuthGuard } from '@nestjs/passport';
 import { LoginWithGoogleUseCase } from '../../application/use-cases/login-with-google.use-case';
 import type { Response } from 'express';
+import { ForgotPasswordUseCase } from '../../application/use-cases/forgot-password.use-case';
+import { ForgotPasswordDto } from '../../application/dtos/forgot-password.dto';
+import { ResetPasswordUseCase } from '../../application/use-cases/reset-password.use-case';
+import { ResetPasswordDto } from '../../application/dtos/reset-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -28,7 +32,9 @@ export class AuthController {
     private readonly generateTwoFactorAuthSecretUseCase: GenerateTwoFactorAuthSecretUseCase,
     private readonly verifyTwoFactorAuthCodeUseCase: VerifyTwoFactorAuthCodeUseCase,
     private readonly verify2FaCodeOnLoginUseCase: VerifyTwoFactorAuthCodeOnLoginUseCase,
-    private readonly loginWithGoogleUseCase: LoginWithGoogleUseCase
+    private readonly loginWithGoogleUseCase: LoginWithGoogleUseCase,
+    private readonly forgotPasswordUseCase: ForgotPasswordUseCase,
+    private readonly resetPasswordUseCase: ResetPasswordUseCase
   ) { }
 
   @Post('login')
@@ -123,27 +129,27 @@ export class AuthController {
   @Post('2fa/login')
   async loginWith2FA(@Body() twoFactorAuthLoginDto: TwoFactorAuthLoginDto) {
     try {
-        const { user, accessToken, refreshToken } = await this.verify2FaCodeOnLoginUseCase.execute(
-            twoFactorAuthLoginDto.userId,
-            twoFactorAuthLoginDto.code,
-        );
-        return {
-            user: new UserPresenter(user),
-            accessToken,
-            refreshToken,
-        };
+      const { user, accessToken, refreshToken } = await this.verify2FaCodeOnLoginUseCase.execute(
+        twoFactorAuthLoginDto.userId,
+        twoFactorAuthLoginDto.code,
+      );
+      return {
+        user: new UserPresenter(user),
+        accessToken,
+        refreshToken,
+      };
     } catch (error) {
-        this.logger.error(`Tentativa de login 2FA falhou para o ID: ${twoFactorAuthLoginDto.userId}`, error.stack);
-        if (error instanceof Error && (error.message === 'Invalid 2FA code' || error.message === '2FA not enabled for this user')) {
-            throw new HttpException('Código de autenticação inválido ou 2FA não ativado', HttpStatus.UNAUTHORIZED);
-        }
-        throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
+      this.logger.error(`Tentativa de login 2FA falhou para o ID: ${twoFactorAuthLoginDto.userId}`, error.stack);
+      if (error instanceof Error && (error.message === 'Invalid 2FA code' || error.message === '2FA not enabled for this user')) {
+        throw new HttpException('Código de autenticação inválido ou 2FA não ativado', HttpStatus.UNAUTHORIZED);
+      }
+      throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
   @Get('google')
   @UseGuards(AuthGuard('google'))
-  async googleAuth() {}
+  async googleAuth() { }
 
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
@@ -154,6 +160,28 @@ export class AuthController {
 
     // Redireciona o usuário de volta para o front-end com os tokens
     res.redirect(`http://localhost:4200/auth/callback?access_token=${accessToken}&refresh_token=${refreshToken}`);
+  }
+
+  // --- Nova Rota para Recuperação de Senha ---
+  @Post('forgot-password')
+  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
+    await this.forgotPasswordUseCase.execute(forgotPasswordDto.email);
+    return { message: 'Se o e-mail estiver cadastrado, uma instrução de recuperação será enviada.' };
+  }
+
+  // --- Nova Rota para Redefinir Senha ---
+  @Post('reset-password')
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    try {
+      await this.resetPasswordUseCase.execute(resetPasswordDto.token, resetPasswordDto.newPassword);
+      return { message: 'Sua senha foi redefinida com sucesso.' };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro ao redefinir senha';
+      if (message === 'Token de recuperação de senha inválido ou expirado.') {
+        throw new HttpException(message, HttpStatus.BAD_REQUEST);
+      }
+      throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
 }

@@ -7,10 +7,16 @@ import { UserPresenter } from '../../../users/infrastructure/http/user.presenter
 import { HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { RefreshTokenUseCase } from '../../application/use-cases/refresh-token.use-case';
 import { VerifyTwoFactorAuthCodeOnLoginUseCase } from '../../application/use-cases/verify-2fa-code-on-login.use-case';
+import { LoginWithGoogleUseCase } from '../../application/use-cases/login-with-google.use-case';
 import { GenerateTwoFactorAuthSecretUseCase } from '../../application/use-cases/generate-2fa-secret.use-case';
 import { VerifyTwoFactorAuthCodeUseCase } from '../../application/use-cases/verify-2fa-code.use-case';
 import { TwoFactorAuthLoginDto } from '../../application/dtos/two-factor-auth-login.dto';
 import { RequestWithUser } from '../../../common/interfaces/request-with-user.interface';
+import { ForgotPasswordUseCase } from '../../application/use-cases/forgot-password.use-case';
+import { ResetPasswordUseCase } from '../../application/use-cases/reset-password.use-case';
+import { ForgotPasswordDto } from '../../application/dtos/forgot-password.dto';
+import { ResetPasswordDto } from '../../application/dtos/reset-password.dto';
+import type { Response } from 'express';
 
 
 describe('AuthController', () => {
@@ -21,6 +27,9 @@ describe('AuthController', () => {
   const mockGenerate2faSecretUseCase = { execute: jest.fn() };
   const mockVerify2FaCodeUseCase = { execute: jest.fn() };
   const mockVerify2FaCodeOnLoginUseCase = { execute: jest.fn() };
+  const mockLoginWithGoogleUseCase = { execute: jest.fn() };
+  const mockForgotPasswordUseCase = { execute: jest.fn() };
+  const mockResetPasswordUseCase = { execute: jest.fn() };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -52,6 +61,18 @@ describe('AuthController', () => {
         {
           provide: VerifyTwoFactorAuthCodeOnLoginUseCase,
           useValue: mockVerify2FaCodeOnLoginUseCase,
+        },
+        {
+          provide: LoginWithGoogleUseCase,
+          useValue: mockLoginWithGoogleUseCase,
+        },
+        {
+          provide: ForgotPasswordUseCase,
+          useValue: mockForgotPasswordUseCase,
+        },
+        {
+          provide: ResetPasswordUseCase,
+          useValue: mockResetPasswordUseCase,
         },
       ],
     }).compile();
@@ -272,6 +293,98 @@ describe('AuthController', () => {
       new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR),
     );
     expect(mockVerify2FaCodeOnLoginUseCase.execute).toHaveBeenCalled();
+  });
+
+  // --- Novos Testes para o Login com Google ---
+  // O teste para a rota /auth/google é mais um teste de integração, pois envolve o Passport.
+  // O teste abaixo foca apenas no redirecionamento final.
+  it('should redirect the user to the frontend with tokens on successful Google login', async () => {
+    const userEmail = 'test@google.com';
+    const tokens = {
+      user: { id: 1, email: userEmail },
+      accessToken: 'mock-access-token',
+      refreshToken: 'mock-refresh-token'
+    };
+
+    // Mocka o use-case para retornar o usuário e os tokens
+    mockLoginWithGoogleUseCase.execute.mockResolvedValue(tokens);
+
+    // Mocka o objeto de resposta do Express
+    const res = {
+      redirect: jest.fn(),
+    } as unknown as Response;
+
+    // O req.user virá da estratégia do Passport
+    const req: { user: string } = { user: userEmail };
+
+    await controller.googleAuthRedirect(req, res);
+
+    // Verifica se o use-case foi chamado com o email correto
+    expect(mockLoginWithGoogleUseCase.execute).toHaveBeenCalledWith(userEmail);
+
+    // Verifica se a função de redirecionamento foi chamada com a URL correta
+    const expectedUrl = `http://localhost:4200/auth/callback?access_token=${tokens.accessToken}&refresh_token=${tokens.refreshToken}`;
+    expect(res.redirect).toHaveBeenCalledWith(expectedUrl);
+  });
+
+  // --- Novos Testes para a rota /auth/forgot-password ---
+  it('should return a success message after requesting a password reset', async () => {
+    const forgotPasswordDto: ForgotPasswordDto = { email: 'test@email.com' };
+    mockForgotPasswordUseCase.execute.mockResolvedValue(true);
+
+    const result = await controller.forgotPassword(forgotPasswordDto);
+
+    expect(mockForgotPasswordUseCase.execute).toHaveBeenCalledWith(forgotPasswordDto.email);
+    expect(result.message).toBe('Se o e-mail estiver cadastrado, uma instrução de recuperação será enviada.');
+  });
+
+  it('should handle unexpected errors during password reset request', async () => {
+    const forgotPasswordDto: ForgotPasswordDto = { email: 'test@email.com' };
+    mockForgotPasswordUseCase.execute.mockRejectedValue(new Error('Internal error'));
+
+    await expect(controller.forgotPassword(forgotPasswordDto)).rejects.toThrow('Internal error');
+    expect(mockForgotPasswordUseCase.execute).toHaveBeenCalledWith(forgotPasswordDto.email);
+  });
+
+  // --- Novos Testes para a rota /auth/reset-password ---
+  it('should return a success message after resetting the password', async () => {
+    const resetPasswordDto: ResetPasswordDto = {
+      token: 'valid-token',
+      newPassword: 'new-password',
+    };
+    mockResetPasswordUseCase.execute.mockResolvedValue(true);
+
+    const result = await controller.resetPassword(resetPasswordDto);
+
+    expect(mockResetPasswordUseCase.execute).toHaveBeenCalledWith(
+      resetPasswordDto.token,
+      resetPasswordDto.newPassword
+    );
+    expect(result.message).toBe('Sua senha foi redefinida com sucesso.');
+  });
+
+  it('should throw BadRequestException if the token is invalid or expired', async () => {
+    const resetPasswordDto: ResetPasswordDto = {
+      token: 'invalid-token',
+      newPassword: 'new-password',
+    };
+    mockResetPasswordUseCase.execute.mockRejectedValue(new Error('Token de recuperação de senha inválido ou expirado.'));
+
+    await expect(controller.resetPassword(resetPasswordDto)).rejects.toThrow(
+      new HttpException('Token de recuperação de senha inválido ou expirado.', HttpStatus.BAD_REQUEST),
+    );
+  });
+
+  it('should throw InternalServerError for other unexpected errors', async () => {
+    const resetPasswordDto: ResetPasswordDto = {
+      token: 'any-token',
+      newPassword: 'any-password',
+    };
+    mockResetPasswordUseCase.execute.mockRejectedValue(new Error('Database error'));
+
+    await expect(controller.resetPassword(resetPasswordDto)).rejects.toThrow(
+      new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR),
+    );
   });
 
 });
