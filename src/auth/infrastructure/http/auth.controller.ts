@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpException, HttpStatus, Logger, UseGuards, Request, HttpCode } from '@nestjs/common';
+import { Controller, Post, Body, HttpException, HttpStatus, Logger, UseGuards, Request, HttpCode, Get, Res } from '@nestjs/common';
 import { LoginUserDto } from '../../application/dtos/login-user.dto';
 import { LoginUserUseCase } from '../../application/use-cases/login-user.use-case';
 import { UserPresenter } from '../../../users/infrastructure/http/user.presenter';
@@ -13,7 +13,9 @@ import { VerifyTwoFactorAuthCodeUseCase } from '../../application/use-cases/veri
 import { VerifyTwoFactorAuthCodeOnLoginUseCase } from '../../application/use-cases/verify-2fa-code-on-login.use-case';
 import { User } from '../../../users/domain/entities/user';
 import { TwoFactorAuthLoginDto } from '../../application/dtos/two-factor-auth-login.dto';
-
+import { AuthGuard } from '@nestjs/passport';
+import { LoginWithGoogleUseCase } from '../../application/use-cases/login-with-google.use-case';
+import type { Response } from 'express';
 
 @Controller('auth')
 export class AuthController {
@@ -25,7 +27,8 @@ export class AuthController {
     private readonly refreshTokenUseCase: RefreshTokenUseCase,
     private readonly generateTwoFactorAuthSecretUseCase: GenerateTwoFactorAuthSecretUseCase,
     private readonly verifyTwoFactorAuthCodeUseCase: VerifyTwoFactorAuthCodeUseCase,
-    private readonly verify2FaCodeOnLoginUseCase: VerifyTwoFactorAuthCodeOnLoginUseCase
+    private readonly verify2FaCodeOnLoginUseCase: VerifyTwoFactorAuthCodeOnLoginUseCase,
+    private readonly loginWithGoogleUseCase: LoginWithGoogleUseCase
   ) { }
 
   @Post('login')
@@ -136,6 +139,21 @@ export class AuthController {
         }
         throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
     }
+  }
+
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  async googleAuth() {}
+
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  async googleAuthRedirect(@Request() req: { user: string }, @Res() res: Response) {
+    const email = req.user;
+
+    const { accessToken, refreshToken } = await this.loginWithGoogleUseCase.execute(email);
+
+    // Redireciona o usuário de volta para o front-end com os tokens
+    res.redirect(`http://localhost:4200/auth/callback?access_token=${accessToken}&refresh_token=${refreshToken}`);
   }
 
 }

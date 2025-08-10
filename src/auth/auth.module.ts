@@ -14,6 +14,8 @@ import { RefreshTokenUseCase } from './application/use-cases/refresh-token.use-c
 import { GenerateTwoFactorAuthSecretUseCase } from './application/use-cases/generate-2fa-secret.use-case';
 import { VerifyTwoFactorAuthCodeUseCase } from './application/use-cases/verify-2fa-code.use-case';
 import { VerifyTwoFactorAuthCodeOnLoginUseCase } from './application/use-cases/verify-2fa-code-on-login.use-case';
+import { GoogleStrategy } from './infrastructure/google/google.strategy';
+import { LoginWithGoogleUseCase } from './application/use-cases/login-with-google.use-case';
 
 @Module({
   imports: [
@@ -38,6 +40,8 @@ import { VerifyTwoFactorAuthCodeOnLoginUseCase } from './application/use-cases/v
     GenerateTwoFactorAuthSecretUseCase,
     VerifyTwoFactorAuthCodeUseCase,
     VerifyTwoFactorAuthCodeOnLoginUseCase,
+    GoogleStrategy,
+    LoginWithGoogleUseCase,
     {
       provide: 'IRefreshTokenRepository',
       useClass: RefreshTokenRepository
