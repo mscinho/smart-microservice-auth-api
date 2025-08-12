@@ -159,7 +159,14 @@ export class AuthController {
     const { accessToken, refreshToken } = await this.loginWithGoogleUseCase.execute(email);
 
     // Redireciona o usuário de volta para o front-end com os tokens
-    res.redirect(`http://localhost:4200/auth/callback?access_token=${accessToken}&refresh_token=${refreshToken}`);
+    const redirectHtml = `
+      <script>
+        window.opener.postMessage({ accessToken: '${accessToken}', refreshToken: '${refreshToken}' }, 'http://localhost:4200');
+        window.close();
+      </script>
+    `;
+
+    res.send(redirectHtml);
   }
 
   // --- Nova Rota para Recuperação de Senha ---
