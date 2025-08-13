@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, ConflictException } from '@nestjs/common';
 import { User } from '../../domain/entities/user';
 import type { IUsersRepository } from '../../domain/repositories/users-repository.interface';
 import bcrypt from 'bcrypt';
@@ -14,7 +14,7 @@ export class CreateUserUseCase {
   async execute(email: string, password_plain: string): Promise<User> {
     const userAlreadyExists = await this.usersRepository.findByEmail(email);
     if (userAlreadyExists) {
-      throw new Error('User already exists');
+      throw new ConflictException('E-mail já cadastrado');
     }
 
     // 1. Cria a entidade de domínio

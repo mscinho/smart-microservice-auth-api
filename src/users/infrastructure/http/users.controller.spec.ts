@@ -4,6 +4,7 @@ import { CreateUserUseCase } from '../../application/use-cases/create-user.use-c
 import { CreateUserDto } from '../../application/dtos/create-user.dto';
 import { UserPresenter } from './user.presenter';
 import { User } from '../../domain/entities/user';
+import { ConflictException } from '@nestjs/common';
 
 describe('UsersController', () => {
   let controller: UsersController;
@@ -43,7 +44,14 @@ describe('UsersController', () => {
 
     // 2. Mocka a resposta do use-case
     // O use-case 'mockado' retornará uma entidade User
-    const createdUser: User = { id: 1, email: dto.email, isActive: true };
+    const createdUser: User = { 
+      id: 1, 
+      email: dto.email, 
+      password: '...', 
+      isActive: true,
+      isTwoFactorAuthenticationEnabled: false,
+      createdAt: new Date()
+    };
     mockCreateUserUseCase.execute.mockResolvedValue(createdUser);
 
     // 3. Executa o método do controller
@@ -67,11 +75,11 @@ describe('UsersController', () => {
     };
 
     // 2. Mocka a resposta do use-case para lançar um erro
-    mockCreateUserUseCase.execute.mockRejectedValue(new Error('User already exists'));
+    mockCreateUserUseCase.execute.mockRejectedValue(new ConflictException('E-mail já cadastrado'));
 
     // 3. Faz a verificação
     // Espera que o controller lance um erro
-    await expect(controller.register(dto)).rejects.toThrow('User already exists');
+    await expect(controller.register(dto)).rejects.toThrow('E-mail já cadastrado');
     // Verifica se o use-case foi chamado, mas não houve retorno de sucesso
     expect(mockCreateUserUseCase.execute).toHaveBeenCalled();
   });

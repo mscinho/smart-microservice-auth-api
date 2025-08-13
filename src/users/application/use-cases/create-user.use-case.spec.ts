@@ -9,6 +9,7 @@ describe('CreateUserUseCase', () => {
   beforeEach(() => {
     repository = {
       findByEmail: jest.fn(),
+      findById: jest.fn(),
       create: jest.fn(),
       save: jest.fn(),
     };
@@ -19,7 +20,14 @@ describe('CreateUserUseCase', () => {
     // Garante que findByEmail retorne null (usuário não existe)
     jest.spyOn(repository, 'findByEmail').mockResolvedValue(null);
     // Garante que o método create retorne o usuário criado
-    jest.spyOn(repository, 'create').mockResolvedValue({ id: 1, email: 'test@email.com', password: '...', isActive: true });
+    jest.spyOn(repository, 'create').mockResolvedValue({ 
+      id: 1, 
+      email: 'test@email.com', 
+      password: '...', 
+      isActive: true,
+      isTwoFactorAuthenticationEnabled: false,
+      createdAt: new Date()
+    });
 
     const user = await useCase.execute('test@email.com', 'strong-password');
     expect(user).toBeDefined();
@@ -28,9 +36,16 @@ describe('CreateUserUseCase', () => {
 
   it('should throw an error if the email already exists', async () => {
     // Simula a situação onde o usuário já existe
-    jest.spyOn(repository, 'findByEmail').mockResolvedValue({ id: 1, email: 'test@email.com', password: '...', isActive: true });
+    jest.spyOn(repository, 'findByEmail').mockResolvedValue({ 
+      id: 1, 
+      email: 'test@email.com', 
+      password: '...', 
+      isActive: true,
+      isTwoFactorAuthenticationEnabled: false,
+      createdAt: new Date()
+    });
 
-    await expect(useCase.execute('test@email.com', 'strong-password')).rejects.toThrow('User already exists');
+    await expect(useCase.execute('test@email.com', 'strong-password')).rejects.toThrow('E-mail já cadastrado');
     expect(repository.create).not.toHaveBeenCalled();
   });
 });

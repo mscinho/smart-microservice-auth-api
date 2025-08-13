@@ -311,7 +311,7 @@ describe('AuthController', () => {
 
     // Mocka o objeto de resposta do Express
     const res = {
-      redirect: jest.fn(),
+      send: jest.fn(),
     } as unknown as Response;
 
     // O req.user virá da estratégia do Passport
@@ -323,8 +323,13 @@ describe('AuthController', () => {
     expect(mockLoginWithGoogleUseCase.execute).toHaveBeenCalledWith(userEmail);
 
     // Verifica se a função de redirecionamento foi chamada com a URL correta
-    const expectedUrl = `http://localhost:4200/auth/callback?access_token=${tokens.accessToken}&refresh_token=${tokens.refreshToken}`;
-    expect(res.redirect).toHaveBeenCalledWith(expectedUrl);
+    const expectedHtml = `
+      <script>
+        window.opener.postMessage({ accessToken: '${tokens.accessToken}', refreshToken: '${tokens.refreshToken}' }, 'http://localhost:4200');
+        window.close();
+      </script>
+    `;
+    expect(res.send).toHaveBeenCalledWith(expectedHtml);
   });
 
   // --- Novos Testes para a rota /auth/forgot-password ---
